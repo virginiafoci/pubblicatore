@@ -1,0 +1,788 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pubblicatore</title>
+<script src="config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root { --bg:#f6f4ef; --card:#fff; --ink:#26221c; --muted:#7a7266; --line:#e6e0d4; --accent:#2f6f4f; --warn:#b5432d; --soft:#eef4ef; --gold:#c08a1e; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:15px/1.45 -apple-system, "Segoe UI", Roboto, sans-serif; background:var(--bg); color:var(--ink); }
+  header { display:flex; align-items:center; gap:10px; padding:12px 24px; background:var(--card); border-bottom:1px solid var(--line); position:sticky; top:0; z-index:5; flex-wrap:wrap; }
+  header h1 { font-size:18px; margin:0 12px 0 0; }
+  nav { display:flex; gap:4px; flex-wrap:wrap; }
+  nav button { border:none; background:none; padding:7px 11px; border-radius:8px; color:var(--muted); }
+  nav button.on { background:var(--soft); color:var(--ink); font-weight:600; }
+  .pill { display:inline-block; min-width:18px; padding:0 6px; border-radius:10px; background:var(--warn); color:#fff; font-size:11px; text-align:center; margin-left:4px; }
+  header .sp { flex:1; }
+  main { display:grid; grid-template-columns:270px 1fr; gap:22px; padding:22px; max-width:1500px; margin:auto; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:16px; }
+  h2 { font-size:13px; text-transform:uppercase; letter-spacing:.8px; color:var(--muted); margin:0 0 12px; }
+  h3 { margin:0 0 10px; font-size:17px; }
+  button { font:inherit; border:1px solid var(--line); background:var(--card); border-radius:8px; padding:7px 12px; cursor:pointer; }
+  button.primary { background:var(--accent); color:#fff; border-color:var(--accent); }
+  button.danger { color:var(--warn); }
+  button.sm { padding:3px 9px; font-size:13px; }
+  button:disabled { opacity:.5; cursor:default; }
+  input, textarea, select { font:inherit; width:100%; padding:8px 10px; border:1px solid var(--line); border-radius:8px; background:#fff; }
+  input[type=checkbox] { width:auto; }
+  textarea { min-height:100px; resize:vertical; }
+  label { display:block; font-size:13px; color:var(--muted); margin:10px 0 4px; }
+  .client { display:flex; align-items:center; gap:8px; padding:7px 10px; border-radius:8px; cursor:pointer; }
+  .client.active { background:var(--soft); font-weight:600; }
+  .dot { width:10px; height:10px; border-radius:50%; flex:none; display:inline-block; }
+  .acc { font-size:13px; color:var(--muted); margin:2px 0 6px 18px; }
+  .bad { color:var(--warn); font-weight:600; }
+  .day { margin:18px 0 8px; font-weight:600; color:var(--muted); font-size:13px; text-transform:capitalize; }
+  .post { display:grid; grid-template-columns:24px 72px 1fr auto; gap:12px; align-items:start; padding:12px; border:1px solid var(--line); border-radius:10px; background:var(--card); margin-bottom:8px; }
+  .thumb { width:72px; height:90px; object-fit:cover; border-radius:6px; display:block; background:#eee; }
+  .meta { font-size:13px; color:var(--muted); }
+  .cap { white-space:pre-wrap; max-height:3.6em; overflow:hidden; font-size:14px; margin-top:4px; }
+  .badge { display:inline-block; padding:1px 8px; border-radius:20px; font-size:12px; border:1px solid var(--line); white-space:nowrap; }
+  .s-bozza{background:#f3f1ec} .s-da_approvare{background:#fff3d6} .s-da_rivedere{background:#fde3d8} .s-programmato{background:#eef2fb} .s-in_corso{background:#fff6dc} .s-pubblicato{background:#e7f4ea} .s-errore{background:#fbecea;color:var(--warn)} .s-pausa{background:#ece9e2}
+  .err { color:var(--warn); font-size:13px; margin-top:4px; }
+  .note-c { background:#fff8e6; border-left:3px solid var(--gold); padding:6px 10px; font-size:13px; margin-top:6px; border-radius:4px; }
+  .row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+  .col { display:flex; flex-direction:column; gap:6px; }
+  .toolbar { display:flex; gap:8px; align-items:center; margin-bottom:14px; flex-wrap:wrap; }
+  .toolbar select, .toolbar input { width:auto; }
+  /* calendario */
+  .cal { display:grid; grid-template-columns:repeat(7, 1fr); gap:6px; }
+  .cal .h { font-size:12px; color:var(--muted); text-transform:uppercase; text-align:center; }
+  .cell { background:var(--card); border:1px solid var(--line); border-radius:8px; min-height:118px; padding:5px; cursor:pointer; }
+  .cell.out { opacity:.45; } .cell.today { border-color:var(--accent); border-width:2px; } .cell.over { background:var(--soft); }
+  .cell .n { font-size:12px; color:var(--muted); }
+  .chip { display:flex; gap:5px; align-items:center; font-size:12px; padding:3px 5px; border-radius:6px; margin-top:3px; border-left:3px solid; background:#faf9f6; cursor:grab; overflow:hidden; white-space:nowrap; }
+  .chip img { width:20px; height:20px; object-fit:cover; border-radius:3px; flex:none; }
+  /* libreria */
+  .grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(140px, 1fr)); gap:10px; }
+  .asset { border:1px solid var(--line); border-radius:8px; overflow:hidden; background:var(--card); }
+  .asset img, .asset video { width:100%; height:150px; object-fit:cover; display:block; background:#eee; }
+  .asset .in { padding:6px; font-size:12px; }
+  .asset.picked { outline:3px solid var(--accent); }
+  /* statistiche */
+  .kpis { display:grid; grid-template-columns:repeat(auto-fit, minmax(150px, 1fr)); gap:10px; margin-bottom:16px; }
+  .kpi { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:12px; }
+  .kpi b { display:block; font-size:24px; }
+  .kpi span { font-size:12px; color:var(--muted); }
+  table { width:100%; border-collapse:collapse; font-size:14px; }
+  th, td { text-align:left; padding:7px 8px; border-bottom:1px solid var(--line); vertical-align:top; }
+  th { font-size:12px; color:var(--muted); text-transform:uppercase; }
+  td.num, th.num { text-align:right; }
+  /* editor */
+  dialog { border:none; border-radius:14px; padding:0; width:min(1040px, 96vw); }
+  dialog .in { padding:20px; }
+  .ed { display:grid; grid-template-columns:1fr 300px; gap:20px; }
+  .media { display:flex; gap:6px; flex-wrap:wrap; margin-top:6px; }
+  .media .m { position:relative; }
+  .media img, .media video { width:72px; height:90px; object-fit:cover; border-radius:6px; display:block; }
+  .media .ctl { display:flex; justify-content:space-between; }
+  .media .ctl button { padding:0 5px; font-size:11px; border-radius:4px; }
+  .count { font-size:12px; color:var(--muted); text-align:right; }
+  .count.over { color:var(--warn); font-weight:600; }
+  .ai { display:flex; gap:6px; flex-wrap:wrap; margin-top:6px; }
+  .ai button { font-size:12px; padding:3px 9px; background:#f5f0ff; border-color:#e0d6f5; }
+  .preview { border:1px solid var(--line); border-radius:12px; overflow:hidden; font-size:13px; background:#fff; position:sticky; top:0; }
+  .preview .top { padding:8px 10px; font-weight:600; display:flex; gap:6px; align-items:center; }
+  .preview .img { aspect-ratio:4/5; background:#eee center/cover; position:relative; }
+  .preview .img .nr { position:absolute; top:8px; right:8px; background:rgba(0,0,0,.6); color:#fff; border-radius:10px; padding:1px 7px; font-size:11px; }
+  .preview .txt { padding:8px 10px; white-space:pre-wrap; }
+  .preview .more { color:var(--muted); }
+  #login { max-width:360px; margin:12vh auto; }
+  .note { font-size:13px; color:var(--muted); }
+  .banner { background:#fbecea; border:1px solid #f1c9c1; color:var(--warn); padding:10px 14px; border-radius:10px; margin-bottom:14px; font-size:14px; }
+  .toast { position:fixed; bottom:20px; left:50%; transform:translateX(-50%); background:var(--ink); color:#fff; padding:10px 16px; border-radius:8px; display:none; z-index:20; }
+  .cmt { border:1px solid var(--line); border-radius:10px; padding:12px; background:var(--card); margin-bottom:10px; }
+  .cmt textarea { min-height:60px; margin-top:8px; }
+  .hidden { display:none !important; }
+  .print-only { display:none; }
+  @media print {
+    header, aside, .toolbar, .no-print { display:none !important; }
+    main { display:block; padding:0; } body { background:#fff; }
+    .print-only { display:block; }
+    .kpi, .card { break-inside:avoid; }
+  }
+  @media (max-width: 900px) { main { grid-template-columns:1fr; } .ed { grid-template-columns:1fr; } .cell { min-height:80px; } }
+</style>
+</head>
+<body>
+<div id="login" class="card" hidden>
+  <h2>Accedi</h2>
+  <label>Email</label><input id="em" type="email" autocomplete="username">
+  <label>Password</label><input id="pw" type="password" autocomplete="current-password">
+  <p><button class="primary" id="btnLogin">Entra</button> <button id="btnForgot" class="sm">Password dimenticata</button></p>
+</div>
+
+<div id="app" hidden>
+  <header>
+    <h1>Pubblicatore</h1>
+    <nav id="nav">
+      <button data-v="calendario" class="on">Calendario</button>
+      <button data-v="elenco">Elenco</button>
+      <button data-v="approvazioni">Approvazioni<span id="nApp"></span></button>
+      <button data-v="libreria">Libreria</button>
+      <button data-v="statistiche">Statistiche</button>
+      <button data-v="commenti">Commenti<span id="nCmt"></span></button>
+      <button data-v="team" id="navTeam">Team</button>
+    </nav>
+    <span class="sp"></span>
+    <button id="btnNew" class="primary">+ Nuovo post</button>
+    <button id="btnImport">Importa settimana</button>
+    <button id="btnLogout">Esci</button>
+  </header>
+  <main>
+    <aside>
+      <div class="card">
+        <h2>Clienti</h2>
+        <div id="clients"></div>
+        <div class="row admin-only" style="margin-top:10px">
+          <input id="newClient" placeholder="Nuovo cliente" style="flex:1">
+          <button id="btnAddClient">Aggiungi</button>
+        </div>
+      </div>
+      <div class="card" style="margin-top:14px">
+        <h2>Account del cliente</h2>
+        <div id="accounts" class="note">Seleziona un cliente.</div>
+        <p class="admin-only"><button id="btnConnect" disabled>Collega / ricollega Facebook e Instagram</button></p>
+        <p class="note admin-only">Nella finestra di Meta seleziona solo le Pagine di questo cliente.</p>
+      </div>
+      <div class="card" style="margin-top:14px">
+        <h2>Tono di voce del cliente</h2>
+        <textarea id="clientTone" style="min-height:70px" placeholder="Es.: caldo, rassicurante, parla ai genitori, niente tecnicismi"></textarea>
+        <p><button class="sm" id="btnTone">Salva</button> <span class="note">usato dall'assistente AI</span></p>
+      </div>
+    </aside>
+    <section id="view"></section>
+  </main>
+</div>
+
+<!-- EDITOR -->
+<dialog id="dlg"><div class="in">
+  <h2 id="dlgTitle">Nuovo post</h2>
+  <div class="ed">
+    <div>
+      <div id="eClientNote"></div>
+      <div class="row">
+        <div style="flex:2"><label>Account</label><select id="pAccount"></select></div>
+        <div style="flex:1.3"><label>Data e ora (ora italiana)</label><input id="pWhen" type="datetime-local"></div>
+      </div>
+      <div class="row">
+        <div style="flex:1"><label>Stato</label>
+          <select id="pStatus">
+            <option value="bozza">Bozza (non esce)</option>
+            <option value="da_approvare">Da approvare dal cliente</option>
+            <option value="programmato">Programmato (esce all'orario)</option>
+          </select></div>
+        <div style="flex:1"><label>Rubrica</label><input id="pRubrica" list="rubriche" placeholder="es. Consigli ai genitori"><datalist id="rubriche"></datalist></div>
+        <div style="flex:1"><label>Pubblica su</label>
+          <div class="row" style="padding-top:6px">
+            <label style="margin:0"><input type="checkbox" id="pFb" checked> Facebook</label>
+            <label style="margin:0"><input type="checkbox" id="pIg" checked> Instagram</label>
+          </div></div>
+      </div>
+      <label>Immagini o video (1 immagine = foto · 2–10 = carosello · 1 video = reel)</label>
+      <div class="row">
+        <input id="pFiles" type="file" accept="image/jpeg,image/png,video/mp4,video/quicktime" multiple style="flex:1">
+        <button id="btnPick" type="button">Dalla libreria</button>
+      </div>
+      <div class="media" id="pMedia"></div>
+      <div id="pickBox" class="hidden" style="margin-top:8px"><div class="grid" id="pickGrid" style="max-height:260px;overflow:auto"></div></div>
+
+      <label>Testo Facebook <span class="note">(oppure scrivi qui un brief e usa “Scrivi da brief”)</span></label>
+      <textarea id="pCapFb"></textarea>
+      <div class="row" style="justify-content:space-between">
+        <div class="ai"><button type="button" data-ai="didascalia">✨ Scrivi da brief</button><button type="button" data-ai="accorcia">✨ Accorcia</button></div>
+        <div class="count" id="cFb"></div>
+      </div>
+      <label>Testo Instagram</label>
+      <textarea id="pCapIg"></textarea>
+      <div class="row" style="justify-content:space-between">
+        <div class="ai"><button type="button" id="btnCopy">Copia da Facebook</button><button type="button" data-ai="instagram">✨ Adatta per Instagram</button></div>
+        <div class="count" id="cIg"></div>
+      </div>
+      <label>Primo commento Instagram <span class="note">(facoltativo, es. hashtag)</span></label>
+      <textarea id="pFirst" style="min-height:50px"></textarea>
+      <div class="row" style="justify-content:space-between">
+        <div class="ai"><button type="button" data-ai="hashtag">✨ Suggerisci hashtag</button></div>
+        <label style="margin:0"><input type="checkbox" id="pLower" checked> hashtag sempre in minuscolo</label>
+      </div>
+      <p class="note">I testi suggeriti dall'AI restano nell'editor: escono solo dopo che li hai riletti e salvati.</p>
+    </div>
+    <div>
+      <label>Anteprima Instagram</label>
+      <div class="preview"><div class="top"><span class="dot" style="background:#ccc"></span><span id="pvName">account</span></div>
+        <div class="img" id="pvImg"><span class="nr" id="pvNr"></span></div><div class="txt" id="pvTxt"></div></div>
+    </div>
+  </div>
+  <p class="row" style="justify-content:space-between;margin-top:14px">
+    <span><button class="danger hidden" id="btnDelOne">Elimina</button> <button class="hidden" id="btnDup">Duplica</button></span>
+    <span><button id="btnCancel">Annulla</button> <button class="primary" id="btnSave">Salva</button></span>
+  </p>
+</div></dialog>
+
+<!-- IMPORT -->
+<dialog id="dlgImp"><div class="in" style="max-width:640px">
+  <h2>Importa settimana</h2>
+  <p class="note">Seleziona insieme <b>posts.json</b> e tutte le immagini della cartella della settimana.</p>
+  <label>Account</label><select id="iAccount"></select>
+  <label>Stato dei post importati</label>
+  <select id="iStatus"><option value="programmato">Programmati</option><option value="da_approvare">Da approvare dal cliente</option><option value="bozza">Bozze</option></select>
+  <label>File</label><input id="iFiles" type="file" multiple accept=".json,image/jpeg,image/png,video/mp4">
+  <p id="iLog" class="note"></p>
+  <p class="row" style="justify-content:flex-end"><button id="iCancel">Chiudi</button><button class="primary" id="iGo">Importa</button></p>
+</div></dialog>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const sb = supabase.createClient(window.CONFIG.SUPABASE_URL, window.CONFIG.SUPABASE_ANON_KEY);
+const $ = (id) => document.getElementById(id);
+const S = { clients:[], accounts:[], posts:[], assets:[], pm:[], am:[], comments:[], profiles:[], members:[], links:[],
+            me:null, client:null, view:"calendario", month:null, editing:null, sel:[], picking:false, checked:new Set() };
+const pub = (p) => `${window.CONFIG.SUPABASE_URL}/storage/v1/object/public/media/${encodeURI(p)}`;
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
+const isVideo = (p) => /\.(mp4|mov)$/i.test(p);
+const STATI = { bozza:"bozza", da_approvare:"da approvare", da_rivedere:"da rivedere", programmato:"programmato", in_corso:"in corso", pubblicato:"pubblicato", errore:"errore", pausa:"in pausa" };
+const LOCKED = ["pubblicato", "in_corso"];
+function toast(m) { const t = $("toast"); t.textContent = m; t.style.display = "block"; clearTimeout(t._h); t._h = setTimeout(() => t.style.display = "none", 3800); }
+const isAdmin = () => S.me?.role === "admin";
+const lowerTags = (s) => (s ?? "").replace(/#[\p{L}\p{N}_]+/gu, (h) => h.toLowerCase());
+const nTags = (s) => ((s ?? "").match(/#[\p{L}\p{N}_]+/gu) ?? []).length;
+
+// --- ora italiana <-> ISO ---
+function romeToISO(local) {
+  const guess = new Date(local + "Z");
+  const fmt = new Intl.DateTimeFormat("en-CA", { timeZone:"Europe/Rome", year:"numeric", month:"2-digit", day:"2-digit", hour:"2-digit", minute:"2-digit", hour12:false });
+  const p = Object.fromEntries(fmt.formatToParts(guess).map(x => [x.type, x.value]));
+  const asRome = new Date(`${p.year}-${p.month}-${p.day}T${p.hour === "24" ? "00" : p.hour}:${p.minute}Z`);
+  return new Date(guess.getTime() - (asRome - guess)).toISOString();
+}
+function isoToRome(iso) {
+  return new Intl.DateTimeFormat("sv-SE", { timeZone:"Europe/Rome", year:"numeric", month:"2-digit", day:"2-digit", hour:"2-digit", minute:"2-digit" }).format(new Date(iso)).replace(" ", "T");
+}
+const romeDay = (iso) => isoToRome(iso).slice(0, 10);
+const romeTime = (iso) => isoToRome(iso).slice(11, 16);
+
+async function fn(name, body, method = "POST") {
+  const { data: { session } } = await sb.auth.getSession();
+  const r = await fetch(`${window.CONFIG.SUPABASE_URL}/functions/v1/${name}`, {
+    method, headers: { "Content-Type":"application/json", Authorization:`Bearer ${session.access_token}` }, body: JSON.stringify(body) });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.error || `Errore ${r.status}`);
+  return j;
+}
+
+// --- accesso ---
+async function boot() {
+  const { data: { session } } = await sb.auth.getSession();
+  $("login").hidden = !!session; $("app").hidden = !session;
+  if (!session) return;
+  const { data: me } = await sb.from("profiles").select("*").eq("user_id", session.user.id).single();
+  S.me = me ?? { role:"collaboratore" };
+  document.querySelectorAll(".admin-only").forEach(e => e.classList.toggle("hidden", !isAdmin()));
+  $("navTeam").classList.toggle("hidden", !isAdmin());
+  const now = new Date(); S.month = new Date(now.getFullYear(), now.getMonth(), 1);
+  await loadAll();
+  const e = new URLSearchParams(location.search).get("esito"); if (e) { toast(e); history.replaceState({}, "", location.pathname); }
+}
+$("btnLogin").onclick = async () => {
+  const { error } = await sb.auth.signInWithPassword({ email:$("em").value, password:$("pw").value });
+  if (error) return toast("Accesso non riuscito"); boot();
+};
+$("btnForgot").onclick = async () => {
+  if (!$("em").value) return toast("Scrivi prima l'email");
+  await sb.auth.resetPasswordForEmail($("em").value, { redirectTo: location.href }); toast("Ti ho mandato un'email per reimpostare la password");
+};
+$("btnLogout").onclick = async () => { await sb.auth.signOut(); boot(); };
+
+async function loadAll() {
+  const since = new Date(Date.now() - 400 * 864e5).toISOString();
+  const q = await Promise.all([
+    sb.from("clients").select("*").order("name"),
+    sb.from("accounts").select("*").order("page_name"),
+    sb.from("posts").select("*").gte("scheduled_at", since).order("scheduled_at"),
+    sb.from("media_assets").select("*").order("created_at", { ascending:false }),
+    sb.from("post_metrics").select("*"),
+    sb.from("account_metrics").select("*").order("day"),
+    sb.from("comments").select("*").eq("replied", false).eq("hidden", false).order("created_time", { ascending:false }).limit(300),
+    sb.from("approval_links").select("id, client_id, label, expires_at, revoked, created_at").order("created_at", { ascending:false }),
+    isAdmin() ? sb.from("profiles").select("*").order("created_at") : { data:[] },
+    isAdmin() ? sb.from("client_members").select("*") : { data:[] },
+  ]);
+  [S.clients, S.accounts, S.posts, S.assets, S.pm, S.am, S.comments, S.links, S.profiles, S.members] = q.map(r => r.data ?? []);
+  if (!S.clients.find(c => c.id === S.client)) S.client = S.clients[0]?.id ?? null;
+  render();
+}
+
+// --- struttura ---
+document.querySelectorAll("#nav button").forEach(b => b.onclick = () => { S.view = b.dataset.v; S.checked.clear(); render(); });
+const clientPosts = () => S.posts.filter(p => p.client_id === S.client);
+const clientOf = (id) => S.clients.find(c => c.id === id);
+const accOf = (id) => S.accounts.find(a => a.id === id);
+
+function render() {
+  document.querySelectorAll("#nav button").forEach(b => b.classList.toggle("on", b.dataset.v === S.view));
+  const nApp = S.posts.filter(p => p.status === "da_rivedere").length;
+  $("nApp").innerHTML = nApp ? `<span class="pill">${nApp}</span>` : "";
+  const nC = S.comments.filter(c => c.client_id === S.client).length;
+  $("nCmt").innerHTML = nC ? `<span class="pill">${nC}</span>` : "";
+
+  $("clients").innerHTML = S.clients.map(c => {
+    const bad = S.accounts.some(a => a.client_id === c.id && a.token_ok === false);
+    return `<div class="client ${c.id === S.client ? "active" : ""}" data-id="${c.id}"><span class="dot" style="background:${esc(c.color)}"></span>${esc(c.name)}${bad ? ' <span class="bad">⚠️</span>' : ""}</div>`;
+  }).join("") || `<p class="note">Nessun cliente.</p>`;
+  document.querySelectorAll(".client").forEach(el => el.onclick = () => { S.client = el.dataset.id; S.checked.clear(); render(); });
+
+  const accs = S.accounts.filter(a => a.client_id === S.client);
+  $("accounts").innerHTML = accs.length ? accs.map(a => `<div>📘 ${esc(a.page_name)}</div>
+    <div class="acc">${a.ig_username ? "📸 @" + esc(a.ig_username) : "Instagram non collegato"}
+    ${a.token_ok === false ? `<br><span class="bad">Collegamento scaduto: ricollega</span>` : ""}</div>`).join("") : "Nessun account collegato.";
+  $("btnConnect").disabled = !S.client;
+  $("clientTone").value = clientOf(S.client)?.tone ?? "";
+
+  const opts = S.accounts.filter(a => S.clients.find(c => c.id === a.client_id)).map(a =>
+    `<option value="${a.id}" ${a.client_id === S.client ? "selected" : ""}>${esc(clientOf(a.client_id)?.name)} · ${esc(a.page_name)}${a.ig_username ? " + @" + esc(a.ig_username) : ""}</option>`).join("");
+  $("pAccount").innerHTML = opts; $("iAccount").innerHTML = opts;
+  $("rubriche").innerHTML = [...new Set(S.posts.map(p => p.rubrica).filter(Boolean))].map(r => `<option value="${esc(r)}">`).join("");
+
+  const views = { calendario:vCalendar, elenco:vList, approvazioni:vApprovals, libreria:vLibrary, statistiche:vStats, commenti:vComments, team:vTeam };
+  (views[S.view] ?? vCalendar)();
+}
+
+function banner() {
+  const bad = S.accounts.filter(a => a.client_id === S.client && a.token_ok === false);
+  const err = clientPosts().filter(p => p.status === "errore").length;
+  let h = "";
+  if (bad.length) h += `<div class="banner">⚠️ Collegamento scaduto per ${bad.map(a => esc(a.page_name)).join(", ")}: i post non usciranno finché non ricolleghi l'account (pulsante a sinistra).</div>`;
+  if (err) h += `<div class="banner">${err} post in errore: aprili dall'Elenco filtrando “errore” e riprogrammali.</div>`;
+  return h;
+}
+const thumbOf = (p) => p.images?.[0] ? (isVideo(p.images[0]) ? `<video class="thumb" src="${pub(p.images[0])}" muted></video>` : `<img class="thumb" src="${pub(p.images[0])}" loading="lazy">`) : `<div class="thumb"></div>`;
+const where = (p) => [p.to_facebook && "FB", p.to_instagram && "IG"].filter(Boolean).join("+");
+
+// --- CALENDARIO (trascina per spostare) ---
+function vCalendar() {
+  const m = S.month, y = m.getFullYear(), mo = m.getMonth();
+  const first = new Date(y, mo, 1), start = new Date(first); start.setDate(1 - ((first.getDay() + 6) % 7));
+  const today = romeDay(new Date().toISOString());
+  const byDay = {};
+  for (const p of clientPosts()) (byDay[romeDay(p.scheduled_at)] ??= []).push(p);
+  const color = esc(clientOf(S.client)?.color ?? "#2f6f4f");
+  let cells = "";
+  for (let i = 0; i < 42; i++) {
+    const d = new Date(start); d.setDate(start.getDate() + i);
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    const chips = (byDay[key] ?? []).map(p => `<div class="chip s-${p.status}" style="border-color:${color}" draggable="${!LOCKED.includes(p.status)}" data-post="${p.id}" title="${esc(STATI[p.status])}">
+      ${p.images?.[0] && !isVideo(p.images[0]) ? `<img src="${pub(p.images[0])}" loading="lazy">` : (p.media_kind === "video" ? "🎬" : "")}
+      <b>${romeTime(p.scheduled_at)}</b> ${esc((p.caption_facebook || p.caption_instagram).slice(0, 40))}</div>`).join("");
+    cells += `<div class="cell ${d.getMonth() !== mo ? "out" : ""} ${key === today ? "today" : ""}" data-day="${key}"><div class="n">${d.getDate()}</div>${chips}</div>`;
+  }
+  const label = first.toLocaleDateString("it-IT", { month:"long", year:"numeric" });
+  $("view").innerHTML = banner() + `<div class="toolbar"><button id="mPrev">‹</button><h3 style="margin:0;min-width:170px;text-align:center;text-transform:capitalize">${label}</h3><button id="mNext">›</button><button id="mToday" class="sm">Oggi</button>
+    <span class="note">Trascina un post su un altro giorno per spostarlo (stesso orario). Clic su un giorno vuoto per crearne uno.</span></div>
+    <div class="cal">${["lun","mar","mer","gio","ven","sab","dom"].map(d => `<div class="h">${d}</div>`).join("")}${cells}</div>`;
+  $("mPrev").onclick = () => { S.month = new Date(y, mo - 1, 1); render(); };
+  $("mNext").onclick = () => { S.month = new Date(y, mo + 1, 1); render(); };
+  $("mToday").onclick = () => { const n = new Date(); S.month = new Date(n.getFullYear(), n.getMonth(), 1); render(); };
+  document.querySelectorAll(".chip").forEach(c => {
+    c.onclick = (e) => { e.stopPropagation(); openEditor(S.posts.find(p => p.id === c.dataset.post)); };
+    c.ondragstart = (e) => e.dataTransfer.setData("text/plain", c.dataset.post);
+  });
+  document.querySelectorAll(".cell").forEach(cell => {
+    cell.onclick = () => openEditor(null, `${cell.dataset.day}T09:30`);
+    cell.ondragover = (e) => { e.preventDefault(); cell.classList.add("over"); };
+    cell.ondragleave = () => cell.classList.remove("over");
+    cell.ondrop = async (e) => {
+      e.preventDefault(); cell.classList.remove("over");
+      const p = S.posts.find(x => x.id === e.dataTransfer.getData("text/plain"));
+      if (!p || LOCKED.includes(p.status)) return;
+      const iso = romeToISO(`${cell.dataset.day}T${romeTime(p.scheduled_at)}`);
+      if (new Date(iso) < new Date()) return toast("Non puoi spostarlo nel passato");
+      const { error } = await sb.from("posts").update({ scheduled_at: iso, ...(p.status === "errore" ? { status:"programmato", error:null } : {}) }).eq("id", p.id);
+      if (error) return toast(error.message);
+      toast("Post spostato"); loadAll();
+    };
+  });
+}
+
+// --- ELENCO con azioni multiple ---
+function vList() {
+  const fs = S.listStatus ?? "", past = S.listPast ?? false, now = Date.now();
+  const list = clientPosts().filter(p => (!fs || p.status === fs) && (past || new Date(p.scheduled_at).getTime() > now - 36e5 || ["errore","da_rivedere"].includes(p.status)));
+  let html = "", lastDay = "";
+  for (const p of list) {
+    const day = new Date(p.scheduled_at).toLocaleDateString("it-IT", { weekday:"long", day:"numeric", month:"long", timeZone:"Europe/Rome" });
+    if (day !== lastDay) { html += `<div class="day">${day}</div>`; lastDay = day; }
+    html += `<div class="post">
+      <input type="checkbox" data-chk="${p.id}" ${S.checked.has(p.id) ? "checked" : ""} ${LOCKED.includes(p.status) ? "disabled" : ""}>
+      <div>${thumbOf(p)}${p.images.length > 1 ? `<div class="meta">+${p.images.length - 1}</div>` : ""}</div>
+      <div><div class="meta">${romeTime(p.scheduled_at)} · ${where(p)} · <span class="badge s-${p.status}">${STATI[p.status]}</span>${p.rubrica ? ` · ${esc(p.rubrica)}` : ""}${p.approved_by ? ` · ✔︎ ${esc(p.approved_by)}` : ""}</div>
+        <div class="cap">${esc(p.caption_facebook || p.caption_instagram)}</div>
+        ${p.client_note ? `<div class="note-c">💬 ${esc(p.client_note)}</div>` : ""}
+        ${p.error ? `<div class="err">${esc(p.error)}</div>` : ""}</div>
+      <div class="col"><button class="sm" data-a="edit" data-id="${p.id}">Apri</button>
+        ${p.status === "errore" || p.status === "pausa" ? `<button class="sm" data-a="resume" data-id="${p.id}">Riprogramma</button>` : ""}</div></div>`;
+  }
+  $("view").innerHTML = banner() + `<div class="toolbar">
+    <select id="fStatus"><option value="">Tutti gli stati</option>${Object.entries(STATI).map(([k, v]) => `<option value="${k}" ${fs === k ? "selected" : ""}>${v}</option>`).join("")}</select>
+    <label style="margin:0"><input type="checkbox" id="fPast" ${past ? "checked" : ""}> anche i passati</label>
+    <span class="sp" style="flex:1"></span>
+    <span class="note" id="nSel">${S.checked.size} selezionati</span>
+    <button class="sm" data-bulk="da_approvare">Invia in approvazione</button>
+    <button class="sm" data-bulk="programmato">Programma</button>
+    <button class="sm" data-bulk="pausa">Pausa</button>
+    <button class="sm danger" data-bulk="elimina">Elimina</button></div>
+    ${html || `<div class="card note">Nessun post. Crea il primo con “+ Nuovo post” o importa una settimana.</div>`}`;
+  $("fStatus").onchange = (e) => { S.listStatus = e.target.value; render(); };
+  $("fPast").onchange = (e) => { S.listPast = e.target.checked; render(); };
+  document.querySelectorAll("[data-chk]").forEach(c => c.onchange = () => { c.checked ? S.checked.add(c.dataset.chk) : S.checked.delete(c.dataset.chk); $("nSel").textContent = `${S.checked.size} selezionati`; });
+  document.querySelectorAll("[data-a]").forEach(b => b.onclick = async () => {
+    const p = S.posts.find(x => x.id === b.dataset.id);
+    if (b.dataset.a === "edit") return openEditor(p);
+    const future = new Date(p.scheduled_at) > new Date(Date.now() + 60000) ? p.scheduled_at : new Date(Date.now() + 3 * 60000).toISOString();
+    await sb.from("posts").update({ status:"programmato", error:null, scheduled_at:future, ig_container_id:null }).eq("id", p.id); loadAll();
+  });
+  document.querySelectorAll("[data-bulk]").forEach(b => b.onclick = async () => {
+    const ids = [...S.checked]; if (!ids.length) return toast("Seleziona almeno un post");
+    if (b.dataset.bulk === "elimina") { if (!confirm(`Eliminare ${ids.length} post?`)) return; await sb.from("posts").delete().in("id", ids); }
+    else await sb.from("posts").update({ status: b.dataset.bulk, error:null }).in("id", ids).not("status", "in", "(pubblicato,in_corso)");
+    S.checked.clear(); toast("Fatto"); loadAll();
+  });
+}
+
+// --- APPROVAZIONI ---
+async function sha256(s) { const h = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(s)); return [...new Uint8Array(h)].map(b => b.toString(16).padStart(2, "0")).join(""); }
+function vApprovals() {
+  const ps = clientPosts().filter(p => ["da_approvare", "da_rivedere"].includes(p.status));
+  const links = S.links.filter(l => l.client_id === S.client && !l.revoked && new Date(l.expires_at) > new Date());
+  $("view").innerHTML = `<div class="card" style="margin-bottom:16px"><h3>Link di approvazione per ${esc(clientOf(S.client)?.name ?? "")}</h3>
+    <p class="note">Il cliente apre il link (senza account), vede i post con l'anteprima e clicca “Approvo” o “Chiedo una modifica”. I post approvati diventano programmati da soli.</p>
+    <div class="row"><input id="lLabel" placeholder="Nome del link, es. Referente marketing" style="flex:1"><select id="lDays" style="width:auto"><option value="30">30 giorni</option><option value="60" selected>60 giorni</option><option value="180">6 mesi</option></select><button class="primary" id="lNew">Crea link</button></div>
+    <div id="lOut"></div>
+    ${links.length ? `<table style="margin-top:10px"><tr><th>Link attivi</th><th>Scade</th><th></th></tr>${links.map(l => `<tr><td>${esc(l.label || "senza nome")}</td><td>${new Date(l.expires_at).toLocaleDateString("it-IT")}</td><td><button class="sm danger" data-rev="${l.id}">Revoca</button></td></tr>`).join("")}</table>` : ""}
+    <p class="note">Per sicurezza il link si vede solo al momento della creazione: se lo perdi, creane uno nuovo e revoca il vecchio.</p></div>
+    <h3>In attesa (${ps.length})</h3>
+    ${ps.map(p => `<div class="post"><span></span><div>${thumbOf(p)}</div><div><div class="meta">${new Date(p.scheduled_at).toLocaleString("it-IT", { timeZone:"Europe/Rome", dateStyle:"medium", timeStyle:"short" })} · <span class="badge s-${p.status}">${STATI[p.status]}</span></div>
+      <div class="cap">${esc(p.caption_facebook || p.caption_instagram)}</div>${p.client_note ? `<div class="note-c">💬 ${esc(p.client_note)}</div>` : ""}</div>
+      <div class="col"><button class="sm" data-open="${p.id}">Apri</button>${p.status === "da_rivedere" ? `<button class="sm" data-resend="${p.id}">Rimanda al cliente</button>` : ""}</div></div>`).join("") || `<p class="note">Nessun post in attesa per questo cliente.</p>`}`;
+  $("lNew").onclick = async () => {
+    const raw = crypto.getRandomValues(new Uint8Array(32));
+    const token = [...raw].map(b => b.toString(16).padStart(2, "0")).join("");
+    const days = Number($("lDays").value);
+    const { error } = await sb.from("approval_links").insert({ client_id:S.client, token_hash: await sha256(token), label:$("lLabel").value.trim() || null, expires_at: new Date(Date.now() + days * 864e5).toISOString() });
+    if (error) return toast(error.message);
+    const url = new URL("approva.html", location.href); url.searchParams.set("t", token);
+    $("lOut").innerHTML = `<p><input readonly value="${esc(url)}" id="lUrl"> <button class="sm" id="lCopy">Copia link</button></p>`;
+    $("lCopy").onclick = () => { navigator.clipboard.writeText(url.toString()); toast("Link copiato: mandalo al cliente"); };
+    const { data } = await sb.from("approval_links").select("id, client_id, label, expires_at, revoked, created_at").order("created_at", { ascending:false }); S.links = data ?? [];
+  };
+  document.querySelectorAll("[data-rev]").forEach(b => b.onclick = async () => { await sb.from("approval_links").update({ revoked:true }).eq("id", b.dataset.rev); loadAll(); });
+  document.querySelectorAll("[data-open]").forEach(b => b.onclick = () => openEditor(S.posts.find(p => p.id === b.dataset.open)));
+  document.querySelectorAll("[data-resend]").forEach(b => b.onclick = async () => { await sb.from("posts").update({ status:"da_approvare" }).eq("id", b.dataset.resend); toast("Rimandato in approvazione"); loadAll(); });
+}
+
+// --- LIBRERIA ---
+async function uploadFile(file, clientId) {
+  const path = `${clientId}/${Date.now()}-${Math.random().toString(36).slice(2, 7)}-${file.name.replace(/[^\w.-]/g, "_")}`;
+  const { error } = await sb.storage.from("media").upload(path, file, { contentType:file.type });
+  if (error) throw error;
+  await sb.from("media_assets").insert({ client_id:clientId, path, kind: file.type.startsWith("video") ? "video" : "immagine" });
+  return path;
+}
+function assetTile(a, picked) {
+  return `<div class="asset ${picked ? "picked" : ""}" data-asset="${a.id}">${a.kind === "video" ? `<video src="${pub(a.path)}" muted></video>` : `<img src="${pub(a.path)}" loading="lazy">`}
+    <div class="in">${(a.tags ?? []).map(t => `#${esc(t)}`).join(" ") || "<span class='note'>senza tag</span>"}</div></div>`;
+}
+function vLibrary() {
+  const tag = S.libTag ?? "";
+  const all = S.assets.filter(a => a.client_id === S.client);
+  const tags = [...new Set(all.flatMap(a => a.tags ?? []))].sort();
+  const list = all.filter(a => !tag || (a.tags ?? []).includes(tag));
+  $("view").innerHTML = `<div class="toolbar"><input type="file" id="lbFiles" multiple accept="image/jpeg,image/png,video/mp4,video/quicktime" style="width:auto">
+    <select id="lbTag"><option value="">Tutti i tag</option>${tags.map(t => `<option ${t === tag ? "selected" : ""}>${esc(t)}</option>`).join("")}</select>
+    <span class="note">Clic su un file: aggiungi tag, usalo in un post o eliminalo.</span></div>
+    <div class="grid">${list.map(a => assetTile(a)).join("") || `<p class="note">La libreria di questo cliente è vuota. Carica foto e video da riusare nei post.</p>`}</div>`;
+  $("lbTag").onchange = (e) => { S.libTag = e.target.value; render(); };
+  $("lbFiles").onchange = async (e) => {
+    const files = [...e.target.files]; toast(`Carico ${files.length} file…`);
+    try { for (const f of files) await uploadFile(f, S.client); toast("Caricati"); } catch (err) { toast("Errore: " + err.message); }
+    loadAll();
+  };
+  document.querySelectorAll("[data-asset]").forEach(el => el.onclick = async () => {
+    const a = S.assets.find(x => x.id === el.dataset.asset);
+    const ans = prompt("Tag separati da virgola (lascia così per non cambiare).\nScrivi USA per crearci un post, ELIMINA per toglierlo dalla libreria.", (a.tags ?? []).join(", "));
+    if (ans === null) return;
+    if (ans.trim().toUpperCase() === "USA") { openEditor(null); S.sel = [a.path]; drawMedia(); return; }
+    if (ans.trim().toUpperCase() === "ELIMINA") { if (S.posts.some(p => p.images.includes(a.path) && !LOCKED.includes(p.status) && p.status !== "pubblicato")) return toast("È usato in un post programmato"); await sb.from("media_assets").delete().eq("id", a.id); return loadAll(); }
+    await sb.from("media_assets").update({ tags: ans.split(",").map(t => t.trim().toLowerCase().replace(/^#/, "")).filter(Boolean) }).eq("id", a.id); loadAll();
+  });
+}
+
+// --- STATISTICHE E REPORT (PDF illimitati con "Stampa") ---
+function vStats() {
+  const ym = S.statMonth ?? new Date().toISOString().slice(0, 7);
+  const [y, m] = ym.split("-").map(Number);
+  const from = new Date(Date.UTC(y, m - 1, 1)), to = new Date(Date.UTC(y, m, 1));
+  const pubd = clientPosts().filter(p => p.status === "pubblicato" && p.published_at && new Date(p.published_at) >= from && new Date(p.published_at) < to);
+  const rows = pubd.map(p => {
+    const ms = S.pm.filter(x => x.post_id === p.id);
+    const sum = (k) => ms.reduce((s, x) => s + (x[k] ?? 0), 0);
+    const inter = sum("likes") + sum("comments") + sum("shares") + sum("saves");
+    return { p, reach: sum("reach"), views: sum("views"), inter, likes: sum("likes"), comments: sum("comments") };
+  }).sort((a, b) => b.inter - a.inter);
+  const tot = (k) => rows.reduce((s, r) => s + r[k], 0);
+  const er = tot("reach") ? (tot("inter") / tot("reach") * 100).toFixed(1) + "%" : "–";
+  const accs = S.accounts.filter(a => a.client_id === S.client).map(a => a.id);
+  const am = S.am.filter(x => accs.includes(x.account_id) && x.day >= from.toISOString().slice(0, 10) && x.day < to.toISOString().slice(0, 10));
+  const fol = (k) => { const v = am.filter(x => x[k] != null); if (!v.length) return "–"; const d = v.at(-1)[k] - v[0][k]; return `${v.at(-1)[k]} (${d >= 0 ? "+" : ""}${d})`; };
+  const byRub = {}; for (const r of rows) { const k = r.p.rubrica || "senza rubrica"; (byRub[k] ??= { n:0, inter:0 }); byRub[k].n++; byRub[k].inter += r.inter; }
+  const nf = (n) => n.toLocaleString("it-IT");
+  const monthLabel = from.toLocaleDateString("it-IT", { month:"long", year:"numeric", timeZone:"UTC" });
+  $("view").innerHTML = `<div class="toolbar"><input type="month" id="sMonth" value="${ym}">
+    <button class="primary" id="sPrint">Scarica report PDF</button><button id="sCsv">Esporta CSV</button>
+    <span class="note">Dati aggiornati ogni ora da Meta. Report illimitati.</span></div>
+    <div class="print-only"><h1 style="margin:0">${esc(clientOf(S.client)?.name ?? "")}</h1><p>Report social · ${monthLabel}</p></div>
+    <div class="kpis">
+      <div class="kpi"><b>${pubd.length}</b><span>post pubblicati</span></div>
+      <div class="kpi"><b>${nf(tot("reach"))}</b><span>persone raggiunte (somma post)</span></div>
+      <div class="kpi"><b>${nf(tot("views"))}</b><span>visualizzazioni</span></div>
+      <div class="kpi"><b>${nf(tot("inter"))}</b><span>interazioni</span></div>
+      <div class="kpi"><b>${er}</b><span>tasso di interazione</span></div>
+      <div class="kpi"><b>${fol("fb_followers")}</b><span>follower Facebook</span></div>
+      <div class="kpi"><b>${fol("ig_followers")}</b><span>follower Instagram</span></div>
+    </div>
+    <div class="card" style="margin-bottom:16px"><h2>Post migliori</h2><table><tr><th></th><th>Post</th><th class="num">Copertura</th><th class="num">Mi piace</th><th class="num">Commenti</th><th class="num">Interazioni</th></tr>
+      ${rows.slice(0, 10).map(r => `<tr><td style="width:56px">${r.p.images?.[0] && !isVideo(r.p.images[0]) ? `<img src="${pub(r.p.images[0])}" style="width:48px;height:60px;object-fit:cover;border-radius:4px">` : "🎬"}</td>
+        <td><div class="meta">${new Date(r.p.published_at).toLocaleDateString("it-IT")} · ${where(r.p)}</div>${esc((r.p.caption_facebook || r.p.caption_instagram).slice(0, 110))}</td>
+        <td class="num">${nf(r.reach)}</td><td class="num">${nf(r.likes)}</td><td class="num">${nf(r.comments)}</td><td class="num"><b>${nf(r.inter)}</b></td></tr>`).join("") || `<tr><td colspan="6" class="note">Nessun post pubblicato in questo mese.</td></tr>`}</table></div>
+    <div class="card"><h2>Rendimento per rubrica</h2><table><tr><th>Rubrica</th><th class="num">Post</th><th class="num">Interazioni medie</th></tr>
+      ${Object.entries(byRub).sort((a, b) => b[1].inter / b[1].n - a[1].inter / a[1].n).map(([k, v]) => `<tr><td>${esc(k)}</td><td class="num">${v.n}</td><td class="num">${nf(Math.round(v.inter / v.n))}</td></tr>`).join("") || `<tr><td colspan="3" class="note">–</td></tr>`}</table></div>`;
+  $("sMonth").onchange = (e) => { S.statMonth = e.target.value; render(); };
+  $("sPrint").onclick = () => { const t = document.title; document.title = `Report ${clientOf(S.client)?.name} ${ym}`; window.print(); document.title = t; };
+  $("sCsv").onclick = () => {
+    const q = (s) => `"${String(s ?? "").replace(/"/g, '""')}"`;
+    const csv = ["data;canali;rubrica;copertura;visualizzazioni;mi piace;commenti;interazioni;testo",
+      ...rows.map(r => [r.p.published_at.slice(0, 10), where(r.p), q(r.p.rubrica), r.reach, r.views, r.likes, r.comments, r.inter, q((r.p.caption_facebook || r.p.caption_instagram).slice(0, 200))].join(";"))].join("\n");
+    const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob(["﻿" + csv], { type:"text/csv" })); a.download = `report-${ym}.csv`; a.click();
+  };
+}
+
+// --- COMMENTI ---
+function vComments() {
+  const list = S.comments.filter(c => c.client_id === S.client);
+  $("view").innerHTML = `<p class="note">Commenti degli ultimi 14 giorni ai post pubblicati da qui, aggiornati ogni ora. Le risposte suggerite dall'AI vanno sempre rilette prima di inviarle.</p>` +
+    (list.map(c => {
+      const p = S.posts.find(x => x.id === c.post_id);
+      return `<div class="cmt"><div class="meta">${c.platform === "instagram" ? "📸" : "📘"} <b>${esc(c.author)}</b> · ${new Date(c.created_time).toLocaleString("it-IT", { dateStyle:"short", timeStyle:"short" })}${p ? ` · sotto: “${esc((p.caption_facebook || p.caption_instagram).slice(0, 50))}…”` : ""}</div>
+        <div style="margin-top:4px">${esc(c.message)}</div>
+        <textarea id="r-${c.id}" placeholder="Scrivi la risposta…"></textarea>
+        <div class="row" style="margin-top:6px"><button class="primary sm" data-reply="${c.id}">Rispondi</button><button class="sm" data-sugg="${c.id}" style="background:#f5f0ff">✨ Suggerisci</button>
+        <button class="sm" data-done="${c.id}">Gestito senza risposta</button><button class="sm danger" data-hide="${c.id}">Nascondi</button></div></div>`;
+    }).join("") || `<div class="card note">Nessun commento da gestire. 🎉</div>`);
+  document.querySelectorAll("[data-sugg]").forEach(b => b.onclick = async () => {
+    const c = S.comments.find(x => x.id === b.dataset.sugg); b.disabled = true;
+    try { const r = await fn("ai", { modo:"risposta", testo:c.message, tono:clientOf(S.client)?.tone }); $(`r-${c.id}`).value = r.testo; } catch (e) { toast(e.message); }
+    b.disabled = false;
+  });
+  document.querySelectorAll("[data-reply]").forEach(b => b.onclick = async () => {
+    const id = b.dataset.reply, t = $(`r-${id}`).value.trim(); if (!t) return toast("Scrivi la risposta");
+    b.disabled = true; try { await fn("azioni", { azione:"rispondi", comment_id:id, testo:t }); toast("Risposta pubblicata"); loadAll(); } catch (e) { toast(e.message); b.disabled = false; }
+  });
+  document.querySelectorAll("[data-hide]").forEach(b => b.onclick = async () => {
+    if (!confirm("Nascondere il commento sul social?")) return;
+    try { await fn("azioni", { azione:"nascondi", comment_id:b.dataset.hide }); loadAll(); } catch (e) { toast(e.message); }
+  });
+  document.querySelectorAll("[data-done]").forEach(b => b.onclick = async () => { await sb.from("comments").update({ replied:true }).eq("id", b.dataset.done); loadAll(); });
+}
+
+// --- TEAM (solo admin) ---
+function vTeam() {
+  if (!isAdmin()) return $("view").innerHTML = `<p class="note">Solo l'amministratore gestisce il team.</p>`;
+  $("view").innerHTML = `<div class="card" style="margin-bottom:16px"><h3>Invita un collaboratore</h3>
+    <div class="row"><input id="tEmail" type="email" placeholder="email@esempio.it" style="flex:1"><button class="primary" id="tInvite">Invia invito</button></div>
+    <p class="note">Riceverà un'email per impostare la password. Vedrà solo i clienti che spunti qui sotto; non potrà collegare account né gestire il team.</p></div>
+    <table><tr><th>Persona</th><th>Ruolo</th>${S.clients.map(c => `<th style="text-align:center">${esc(c.name)}</th>`).join("")}</tr>
+    ${S.profiles.map(u => `<tr><td>${esc(u.email)}</td><td>${u.user_id === S.me.user_id ? "admin (tu)" : `<select data-role="${u.user_id}" style="width:auto"><option ${u.role === "collaboratore" ? "selected" : ""}>collaboratore</option><option ${u.role === "admin" ? "selected" : ""}>admin</option></select>`}</td>
+      ${S.clients.map(c => `<td style="text-align:center">${u.role === "admin" ? "✔︎" : `<input type="checkbox" data-mem="${u.user_id}|${c.id}" ${S.members.some(m => m.user_id === u.user_id && m.client_id === c.id) ? "checked" : ""}>`}</td>`).join("")}</tr>`).join("")}</table>`;
+  $("tInvite").onclick = async () => {
+    try { await fn("azioni", { azione:"invita", email:$("tEmail").value, clienti:[] }); toast("Invito inviato: ora spunta i suoi clienti"); loadAll(); } catch (e) { toast(e.message); }
+  };
+  document.querySelectorAll("[data-role]").forEach(s => s.onchange = async () => { await sb.from("profiles").update({ role:s.value }).eq("user_id", s.dataset.role); loadAll(); });
+  document.querySelectorAll("[data-mem]").forEach(c => c.onchange = async () => {
+    const [user_id, client_id] = c.dataset.mem.split("|");
+    if (c.checked) await sb.from("client_members").insert({ user_id, client_id });
+    else await sb.from("client_members").delete().eq("user_id", user_id).eq("client_id", client_id);
+    loadAll();
+  });
+}
+
+// --- clienti e collegamento ---
+$("btnAddClient").onclick = async () => {
+  const name = $("newClient").value.trim(); if (!name) return;
+  const colors = ["#2f6f4f", "#b5652d", "#3a5ba0", "#8a3f8f", "#c08a1e", "#3f8f8a"];
+  const { data, error } = await sb.from("clients").insert({ name, color: colors[S.clients.length % colors.length] }).select().single();
+  if (error) return toast(error.message);
+  $("newClient").value = ""; S.client = data.id; loadAll();
+};
+$("btnConnect").onclick = async () => { try { location.href = (await fn("meta-oauth", { client_id:S.client })).url; } catch (e) { toast(e.message); } };
+$("btnTone").onclick = async () => { await sb.from("clients").update({ tone:$("clientTone").value.slice(0, 500) }).eq("id", S.client); toast("Tono salvato"); loadAll(); };
+
+// --- EDITOR ---
+function openEditor(p, whenLocal) {
+  S.editing = p ?? null; S.sel = p ? [...p.images] : []; S.picking = false;
+  const locked = p && LOCKED.includes(p.status);
+  $("dlgTitle").textContent = p ? (locked ? "Post pubblicato (sola lettura)" : "Modifica post") : "Nuovo post";
+  if (p?.account_id) $("pAccount").value = p.account_id;
+  $("pWhen").value = p ? isoToRome(p.scheduled_at) : (whenLocal ?? isoToRome(new Date(Date.now() + 36e5).toISOString()));
+  $("pStatus").value = p ? (["bozza", "da_approvare", "programmato"].includes(p.status) ? p.status : "programmato") : "programmato";
+  $("pFb").checked = p ? p.to_facebook : true; $("pIg").checked = p ? p.to_instagram : true;
+  $("pCapFb").value = p?.caption_facebook ?? ""; $("pCapIg").value = p?.caption_instagram ?? "";
+  $("pFirst").value = p?.first_comment ?? ""; $("pRubrica").value = p?.rubrica ?? "";
+  $("eClientNote").innerHTML = p?.client_note ? `<div class="note-c">💬 Nota del cliente: ${esc(p.client_note)}</div>` : (p?.error ? `<div class="err">${esc(p.error)}</div>` : "");
+  $("pFiles").value = ""; $("pickBox").classList.add("hidden");
+  $("btnSave").disabled = !!locked; $("btnDelOne").classList.toggle("hidden", !p || locked); $("btnDup").classList.toggle("hidden", !p);
+  drawMedia(); counters(); $("dlg").showModal();
+}
+function drawMedia() {
+  $("pMedia").innerHTML = S.sel.map((path, i) => `<div class="m">${isVideo(path) ? `<video src="${pub(path)}" muted></video>` : `<img src="${pub(path)}">`}
+    <div class="ctl"><button data-mv="${i}|-1">←</button><button data-rm="${i}">✕</button><button data-mv="${i}|1">→</button></div></div>`).join("");
+  document.querySelectorAll("[data-rm]").forEach(b => b.onclick = () => { S.sel.splice(+b.dataset.rm, 1); drawMedia(); });
+  document.querySelectorAll("[data-mv]").forEach(b => b.onclick = () => {
+    const [i, d] = b.dataset.mv.split("|").map(Number), j = i + d; if (j < 0 || j >= S.sel.length) return;
+    [S.sel[i], S.sel[j]] = [S.sel[j], S.sel[i]]; drawMedia();
+  });
+  if (S.picking) drawPicker();
+  preview();
+}
+function drawPicker() {
+  const acc = accOf($("pAccount").value);
+  $("pickGrid").innerHTML = S.assets.filter(a => a.client_id === acc?.client_id).map(a => assetTile(a, S.sel.includes(a.path))).join("") || `<p class="note">Libreria vuota per questo cliente.</p>`;
+  document.querySelectorAll("#pickGrid [data-asset]").forEach(el => el.onclick = () => {
+    const a = S.assets.find(x => x.id === el.dataset.asset), i = S.sel.indexOf(a.path);
+    i >= 0 ? S.sel.splice(i, 1) : S.sel.push(a.path); drawMedia();
+  });
+}
+$("btnPick").onclick = () => { S.picking = !S.picking; $("pickBox").classList.toggle("hidden", !S.picking); if (S.picking) drawPicker(); };
+$("pFiles").onchange = async () => {
+  const acc = accOf($("pAccount").value); if (!acc) return toast("Scegli prima l'account");
+  const files = [...$("pFiles").files]; $("btnSave").disabled = true; toast(`Carico ${files.length} file…`);
+  try { for (const f of files) S.sel.push(await uploadFile(f, acc.client_id)); } catch (e) { toast("Errore: " + e.message); }
+  $("btnSave").disabled = false; $("pFiles").value = ""; drawMedia();
+  const { data } = await sb.from("media_assets").select("*").order("created_at", { ascending:false }); S.assets = data ?? S.assets;
+};
+function counters() {
+  const ig = $("pCapIg").value, tags = nTags(ig) + nTags($("pFirst").value);
+  $("cFb").textContent = `${$("pCapFb").value.length} caratteri`;
+  $("cIg").textContent = `${ig.length}/2200 · ${tags}/30 hashtag`;
+  $("cIg").classList.toggle("over", ig.length > 2200 || tags > 30);
+  preview();
+}
+function preview() {
+  const acc = accOf($("pAccount").value);
+  $("pvName").textContent = acc?.ig_username ? "@" + acc.ig_username : (acc?.page_name ?? "account");
+  const first = S.sel[0];
+  $("pvImg").style.backgroundImage = first && !isVideo(first) ? `url("${pub(first)}")` : "none";
+  $("pvNr").textContent = S.sel.length > 1 ? `1/${S.sel.length}` : (first && isVideo(first) ? "🎬 reel" : "");
+  const t = $("pCapIg").value || $("pCapFb").value;
+  $("pvTxt").innerHTML = t.length > 125 ? `${esc(t.slice(0, 125))}<span class="more">… altro</span>` : esc(t);
+}
+["pCapFb", "pCapIg", "pFirst"].forEach(id => $(id).oninput = counters);
+$("pAccount").onchange = () => { preview(); if (S.picking) drawPicker(); };
+$("btnCancel").onclick = () => $("dlg").close();
+$("btnCopy").onclick = () => { $("pCapIg").value = $("pCapFb").value.replace(/https?:\/\/\S+/g, "link in bio"); counters(); };
+document.querySelectorAll("[data-ai]").forEach(b => b.onclick = async () => {
+  const modo = b.dataset.ai, acc = accOf($("pAccount").value);
+  const testo = modo === "hashtag" ? ($("pCapIg").value || $("pCapFb").value) : $("pCapFb").value;
+  b.disabled = true; const old = b.textContent; b.textContent = "…";
+  try {
+    const r = await fn("ai", { modo, testo, tono: clientOf(acc?.client_id)?.tone });
+    if (modo === "instagram") $("pCapIg").value = r.testo;
+    else if (modo === "hashtag") $("pFirst").value = ($("pFirst").value + " " + r.testo).trim();
+    else $("pCapFb").value = r.testo;
+    counters();
+  } catch (e) { toast(e.message); }
+  b.disabled = false; b.textContent = old;
+});
+
+function validate(row) {
+  const vids = row.images.filter(isVideo);
+  if (vids.length && row.images.length > 1) return "Un reel può avere un solo video, senza immagini";
+  if (row.images.length > 10) return "Massimo 10 immagini per carosello";
+  if (row.to_instagram && !row.images.length) return "Instagram richiede almeno un'immagine o un video";
+  if (!row.to_facebook && !row.to_instagram) return "Scegli almeno un social";
+  if (row.caption_instagram.length > 2200) return "Testo Instagram oltre 2200 caratteri";
+  if (nTags(row.caption_instagram) + nTags(row.first_comment) > 30) return "Instagram accetta al massimo 30 hashtag";
+  if (row.status !== "bozza" && new Date(row.scheduled_at) < new Date(Date.now() - 60000)) return "L'orario è nel passato";
+  return null;
+}
+async function save(asCopy = false) {
+  const acc = accOf($("pAccount").value);
+  if (!acc) return toast("Collega prima un account per questo cliente");
+  const L = $("pLower").checked ? lowerTags : (s) => s;
+  const row = {
+    client_id: acc.client_id, account_id: acc.id, scheduled_at: romeToISO($("pWhen").value),
+    to_facebook: $("pFb").checked, to_instagram: $("pIg").checked, status: $("pStatus").value,
+    caption_facebook: L($("pCapFb").value), caption_instagram: L($("pCapIg").value), first_comment: L($("pFirst").value),
+    rubrica: $("pRubrica").value.trim() || null, images: [...S.sel], media_kind: S.sel.some(isVideo) ? "video" : "immagini",
+    error: null, ig_container_id: null,
+  };
+  if (asCopy) { row.status = "bozza"; row.scheduled_at = new Date(new Date(row.scheduled_at).getTime() + 7 * 864e5).toISOString(); }
+  const bad = validate(row); if (bad && !asCopy) return toast(bad);
+  if (!asCopy && S.editing && S.editing.status === "da_rivedere" && row.status === "programmato" && !confirm("Il cliente aveva chiesto modifiche. Programmarlo comunque senza nuova approvazione?")) return;
+  $("btnSave").disabled = true;
+  const r = S.editing && !asCopy ? await sb.from("posts").update({ ...row, client_note: row.status === "da_approvare" ? null : S.editing.client_note }).eq("id", S.editing.id)
+                                 : await sb.from("posts").insert(row);
+  $("btnSave").disabled = false;
+  if (r.error) return toast(r.error.message);
+  $("dlg").close(); toast(asCopy ? "Copia creata come bozza tra 7 giorni" : row.status === "programmato" ? "Post programmato" : row.status === "da_approvare" ? "In attesa di approvazione del cliente" : "Bozza salvata"); loadAll();
+}
+$("btnSave").onclick = () => save(false);
+$("btnDup").onclick = () => save(true);
+$("btnDelOne").onclick = async () => { if (!confirm("Eliminare questo post?")) return; await sb.from("posts").delete().eq("id", S.editing.id); $("dlg").close(); loadAll(); };
+$("btnNew").onclick = () => openEditor(null);
+
+// --- IMPORTA SETTIMANA (posts.json + immagini) ---
+$("btnImport").onclick = () => { $("iLog").textContent = ""; $("iFiles").value = ""; $("dlgImp").showModal(); };
+$("iCancel").onclick = () => $("dlgImp").close();
+$("iGo").onclick = async () => {
+  const acc = accOf($("iAccount").value); if (!acc) return toast("Collega prima un account");
+  const files = [...$("iFiles").files], js = files.find(f => f.name.endsWith(".json"));
+  if (!js) return toast("Manca posts.json");
+  let posts; try { posts = JSON.parse(await js.text()); } catch { return toast("posts.json non valido"); }
+  const byName = Object.fromEntries(files.map(f => [f.name, f])), log = (m) => $("iLog").textContent = m;
+  $("iGo").disabled = true; let n = 0, skip = 0;
+  for (const p of posts) {
+    const when = romeToISO(p.when);
+    if (new Date(when) < new Date()) { skip++; continue; }
+    const missing = (p.images ?? []).filter(i => !byName[i]);
+    if (missing.length) { log(`Mancano: ${missing.join(", ")}`); continue; }
+    const images = []; for (const i of p.images) images.push(await uploadFile(byName[i], acc.client_id));
+    const L = lowerTags;
+    await sb.from("posts").insert({ client_id:acc.client_id, account_id:acc.id, scheduled_at:when, status:$("iStatus").value,
+      caption_facebook:L(p.caption_facebook ?? ""), caption_instagram:L(p.caption_instagram ?? ""), first_comment:L(p.first_comment ?? ""),
+      rubrica:p.rubrica ?? null, images, media_kind: images.some(isVideo) ? "video" : "immagini", to_facebook:!p.only_instagram, to_instagram:!p.only_facebook });
+    n++; log(`Importati ${n} di ${posts.length}…`);
+  }
+  log(`Fatto: ${n} post creati${skip ? `, ${skip} saltati perché già passati` : ""}.`);
+  $("iGo").disabled = false; loadAll();
+};
+
+// primo accesso da invito o recupero password: si sceglie la propria password
+const NEEDS_PW = /type=(invite|recovery)/.test(location.hash);
+async function askPassword() {
+  for (;;) {
+    const np = prompt("Scegli la tua password per il Pubblicatore (almeno 10 caratteri):");
+    if (np === null) return;
+    if (np.length < 10) { alert("Troppo corta: almeno 10 caratteri."); continue; }
+    const { error } = await sb.auth.updateUser({ password:np });
+    if (error) { alert("Errore: " + error.message); continue; }
+    toast("Password salvata"); return;
+  }
+}
+sb.auth.onAuthStateChange((ev) => { if (ev === "PASSWORD_RECOVERY") setTimeout(askPassword, 300); });
+boot().then(async () => { if (NEEDS_PW && (await sb.auth.getSession()).data.session) { history.replaceState({}, "", location.pathname); askPassword(); } });
+</script>
+</body>
+</html>
