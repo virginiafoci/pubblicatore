@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<meta name="referrer" content="no-referrer">
+<title>Approvazione post</title>
+<script src="config.js"></script>
+<style>
+  :root { --bg:#f6f4ef; --card:#fff; --ink:#26221c; --muted:#7a7266; --line:#e6e0d4; --accent:#2f6f4f; --warn:#b5432d; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:16px/1.5 -apple-system, "Segoe UI", Roboto, sans-serif; background:var(--bg); color:var(--ink); }
+  .wrap { max-width:640px; margin:auto; padding:20px 14px 60px; }
+  h1 { font-size:22px; margin:6px 0 2px; }
+  .muted { color:var(--muted); font-size:14px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:14px; overflow:hidden; margin:18px 0; }
+  .head { padding:12px 14px; display:flex; justify-content:space-between; gap:10px; align-items:center; }
+  .slides { display:flex; overflow-x:auto; scroll-snap-type:x mandatory; background:#eee; }
+  .slides img, .slides video { width:100%; flex:none; aspect-ratio:4/5; object-fit:cover; scroll-snap-align:start; }
+  .txt { padding:12px 14px; white-space:pre-wrap; font-size:15px; }
+  .lbl { font-size:12px; text-transform:uppercase; letter-spacing:.6px; color:var(--muted); padding:10px 14px 0; }
+  .act { padding:12px 14px 16px; border-top:1px solid var(--line); }
+  textarea, input { font:inherit; width:100%; padding:9px 11px; border:1px solid var(--line); border-radius:8px; }
+  textarea { min-height:70px; margin:8px 0; }
+  button { font:inherit; border-radius:10px; padding:10px 16px; border:1px solid var(--line); background:#fff; cursor:pointer; }
+  .ok { background:var(--accent); color:#fff; border-color:var(--accent); }
+  .badge { font-size:12px; padding:2px 9px; border-radius:20px; background:#fff3d6; white-space:nowrap; }
+  .badge.done { background:#e7f4ea; } .badge.rev { background:#fde3d8; }
+  .row { display:flex; gap:8px; flex-wrap:wrap; }
+  .msg { background:#e7f4ea; padding:10px 14px; }
+  .err { color:var(--warn); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="muted">Anteprima dei contenuti social</div>
+  <h1 id="title">Caricamento…</h1>
+  <p class="muted" id="intro"></p>
+  <label class="muted">Il tuo nome (comparirà nell'approvazione)</label>
+  <input id="name" maxlength="80" placeholder="Nome e cognome">
+  <div id="list"></div>
+</div>
+<script>
+const FN = `${window.CONFIG.SUPABASE_URL}/functions/v1/approva`;
+const token = new URLSearchParams(location.search).get("t") ?? "";
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
+const headers = { "Content-Type":"application/json", apikey: window.CONFIG.SUPABASE_ANON_KEY };
+try { $("name").value = localStorage.getItem("approva_nome") ?? ""; } catch {}
+$("name").oninput = () => { try { localStorage.setItem("approva_nome", $("name").value); } catch {} };
+
+async function load() {
+  const r = await fetch(`${FN}?t=${encodeURIComponent(token)}`, { headers });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) { $("title").textContent = "Link non valido o scaduto"; $("intro").textContent = "Chiedi un nuovo link a chi gestisce i tuoi social."; return; }
+  $("title").textContent = j.cliente?.name ?? "";
+  const todo = j.posts.filter(p => p.status === "da_approvare").length;
+  $("intro").textContent = todo ? `${todo} post da approvare. Scorri le immagini, leggi i testi e conferma o chiedi una modifica.` : "Nessun post in attesa: è tutto approvato. Grazie!";
+  $("list").innerHTML = j.posts.map(p => {
+    const when = new Date(p.scheduled_at).toLocaleString("it-IT", { timeZone:"Europe/Rome", weekday:"long", day:"numeric", month:"long", hour:"2-digit", minute:"2-digit" });
+    const media = p.images.map(i => /\.(mp4|mov)$/i.test(i) ? `<video src="${j.media}${encodeURI(i)}" controls playsinline></video>` : `<img src="${j.media}${encodeURI(i)}" loading="lazy" alt="">`).join("");
+    const where = [p.to_facebook && "Facebook", p.to_instagram && "Instagram"].filter(Boolean).join(" e ");
+    const badge = p.status === "da_approvare" ? `<span class="badge">da approvare</span>` : p.status === "da_rivedere" ? `<span class="badge rev">modifica richiesta</span>` : `<span class="badge done">approvato ✓</span>`;
+    const same = !p.caption_facebook || !p.caption_instagram || p.caption_facebook.trim() === p.caption_instagram.trim();
+    return `<div class="card" id="c-${p.id}">
+      <div class="head"><div><b style="text-transform:capitalize">${esc(when)}</b><div class="muted">${esc(where)}${p.images.length > 1 ? ` · carosello di ${p.images.length}` : ""}</div></div>${badge}</div>
+      ${media ? `<div class="slides">${media}</div>` : ""}
+      ${same ? `<div class="txt">${esc(p.caption_facebook || p.caption_instagram)}</div>`
+             : `<div class="lbl">Testo Facebook</div><div class="txt">${esc(p.caption_facebook)}</div><div class="lbl">Testo Instagram</div><div class="txt">${esc(p.caption_instagram)}</div>`}
+      ${p.first_comment ? `<div class="lbl">Primo commento</div><div class="txt">${esc(p.first_comment)}</div>` : ""}
+      ${p.client_note ? `<div class="msg">💬 ${esc(p.client_note)}</div>` : ""}
+      ${p.status === "da_approvare" ? `<div class="act"><textarea id="n-${p.id}" maxlength="1500" placeholder="Nota facoltativa, oppure cosa vuoi modificare"></textarea>
+        <div class="row"><button class="ok" data-ok="${p.id}">Approvo</button><button data-mod="${p.id}">Chiedo una modifica</button></div><div class="err" id="e-${p.id}"></div></div>` : ""}
+    </div>`;
+  }).join("");
+  document.querySelectorAll("[data-ok]").forEach(b => b.onclick = () => send(b.dataset.ok, "approva"));
+  document.querySelectorAll("[data-mod]").forEach(b => b.onclick = () => send(b.dataset.mod, "modifica"));
+}
+async function send(id, esito) {
+  const nota = $(`n-${id}`).value.trim();
+  if (esito === "modifica" && !nota) { $(`e-${id}`).textContent = "Scrivi nel riquadro cosa vuoi modificare."; return; }
+  const r = await fetch(FN, { method:"POST", headers, body: JSON.stringify({ t:token, post_id:id, esito, nome:$("name").value, nota }) });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) { $(`e-${id}`).textContent = j.error ?? "Errore, riprova"; return; }
+  load();
+}
+load();
+</script>
+</body>
+</html>
