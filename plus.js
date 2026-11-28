@@ -35,6 +35,7 @@
     .px-tip { position:fixed; z-index:9999; pointer-events:none; background:#26221c; color:#fff; font-size:12px; padding:6px 9px; border-radius:6px; display:none; max-width:240px; line-height:1.35; }
     .px-heat td { padding:0; } .px-heat td div { height:30px; border-radius:4px; margin:1px; }
     .px-heat th { font-size:11px; color:var(--muted); font-weight:400; padding:2px 6px; text-align:left; }
+    .cal { grid-template-columns:repeat(7, minmax(0,1fr)); } body.px-all aside { display:none; } body.px-all main { grid-template-columns:1fr; }
     @media (max-width: 900px) { .px-week { grid-template-columns:1fr; } .px-charts { grid-template-columns:1fr; } .px-col { min-height:0; } }
   `;
   document.head.appendChild(css);
@@ -115,7 +116,8 @@
       }
       body = `<div class="cal">${["lun","mar","mer","gio","ven","sab","dom"].map(d => `<div class="h">${d}</div>`).join("")}${cells}</div>`;
     }
-    const vis = visible().filter(p => S.calMode === "settimana" || romeDay(p.scheduled_at).slice(0, 7) === keyOf(S.month).slice(0, 7));
+    const wk0 = S.weekStart ? keyOf(S.weekStart) : "", wk1 = S.weekStart ? keyOf(new Date(S.weekStart.getFullYear(), S.weekStart.getMonth(), S.weekStart.getDate() + 6)) : "";
+    const vis = visible().filter(p => { const k = romeDay(p.scheduled_at); return S.calMode === "settimana" ? k >= wk0 && k <= wk1 : k.slice(0, 7) === keyOf(S.month).slice(0, 7); });
     const cnt = (s) => vis.filter(p => p.status === s).length;
     const legend = S.calAll ? `<div class="px-legend">${[...new Set(vis.map(p => p.client_id))].map(id => `<span><span class="dot" style="background:${esc(clientOf(id)?.color ?? "#999")}"></span>${esc(clientOf(id)?.name ?? "")}</span>`).join("")}</div>` : "";
     $("view").innerHTML = (S.calAll ? "" : banner()) + `<div class="toolbar">
@@ -162,7 +164,7 @@
   function lineChart(series) { // series: [{name,color,pts:[{x:label,v}]}]
     const W = 640, H = 200, L = 52, B = 22, T = 12, R = 70;
     const all = series.flatMap(s => s.pts.map(p => p.v)); if (!all.length) return `<p class="note">Ancora nessun dato sui follower per questo mese.</p>`;
-    let mn = Math.min(...all), mx = Math.max(...all); if (mn === mx) { mn -= 1; mx += 1; } const padv = (mx - mn) * .1; mn -= padv; mx += padv;
+    let mn = Math.min(...all), mx = Math.max(...all); if (mn === mx) { mn -= 1; mx += 1; } const padv = (mx - mn) * .1; mn = Math.max(0, mn - padv); mx += padv;
     const xs = series[0].pts.length > 1 ? series[0].pts.length : 2;
     const X = (i, len) => L + (W - L - R) * i / Math.max(1, len - 1), Y = (v) => T + (H - B - T) * (1 - (v - mn) / (mx - mn));
     const ticks = [mn, (mn + mx) / 2, mx];
@@ -204,7 +206,7 @@
     for (const p of cur) { const d = +isoToRome(p.published_at).slice(8, 10) - 1; const mt = metricsOf(p); perDay[d].n++; perDay[d].inter += mt.inter; perDay[d].reach += mt.reach; }
     const accs = S.accounts.filter(a => a.client_id === S.client).map(a => a.id);
     const am = S.am.filter(x => accs.includes(x.account_id) && x.day >= from.toISOString().slice(0, 10) && x.day < to.toISOString().slice(0, 10));
-    const byD = {}; for (const r of am) { const o = (byD[r.day] ??= { fb:null, ig:null }); if (r.fb_followers != null) o.fb = (o.fb ?? 0) + r.fb_followers; if (r.ig_followers != null) o.ig = (o.ig ?? 0) + r.ig_followers; }
+    const byD = {}; for (const r of am) { const o = (byD[r.day] ??= { fb:null, ig:null }); if (r.fb_followers) o.fb = (o.fb ?? 0) + r.fb_followers; if (r.ig_followers) o.ig = (o.ig ?? 0) + r.ig_followers; }
     const ds = Object.keys(byD).sort(), fmt = (d) => new Date(d + "T12:00").toLocaleDateString("it-IT", { day:"numeric", month:"short" });
     const series = [
       { name:"Facebook", color:C_FB, pts: ds.filter(d => byD[d].fb != null).map(d => ({ x:fmt(d), v:byD[d].fb })) },
@@ -279,5 +281,7 @@
     $("dlg").close(); toast(asCopy ? "Copia creata come bozza tra 7 giorni" : row.status === "programmato" ? "Post programmato" : row.status === "da_approvare" ? "In attesa di approvazione del cliente" : "Bozza salvata"); loadAll();
   };
 
+  const origRender = render;
+  render = function () { origRender(); document.body.classList.toggle("px-all", S.view === "calendario" && S.calAll); };
   if (S.me && !document.getElementById("app").hidden) render();
 })();
